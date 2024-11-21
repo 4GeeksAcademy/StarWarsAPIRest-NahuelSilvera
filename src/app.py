@@ -287,28 +287,29 @@ def get_all_users():
 
 @app.route('/users/favorites', methods=['GET'])
 def get_user_favorites():
-    # Usamos un user_id hardcodeado para simular el proceso de autenticación
-    current_user_id = 1  # Esto se remplaza por la autenticación del próximo ejercicio.
+    current_user_id = 1  # Simulación de usuario autenticado.
     
-    # Obtener los favoritos del usuario
+    # Obtener los favoritos del usuario actual.
     favorites = Favorites.query.filter_by(user_id=current_user_id).all()
     favorites_data = []
 
     for favorite in favorites:
-        if favorite.favorite_type == 'planet':
-            planet = Planets.query.get(favorite.favorite_id_ref)
-            favorites_data.append({
-                'favorite_type': favorite.favorite_type,
-                'planet_id': planet.planet_id,
-                'name': planet.name
-            })
-        elif favorite.favorite_type == 'character':
-            character = Characters.query.get(favorite.favorite_id_ref)
-            favorites_data.append({
-                'favorite_type': favorite.favorite_type,
-                'character_id': character.character_id,
-                'name': character.name
-            })
+        if favorite.favorite_type == 'Planet':
+            planet = Planets.query.get(favorite.item_id)
+            if planet:
+                favorites_data.append({
+                    'favorite_type': favorite.favorite_type,
+                    'planet_id': planet.planet_id,
+                    'name': planet.name
+                })
+        elif favorite.favorite_type == 'Character':
+            character = Characters.query.get(favorite.item_id)
+            if character:
+                favorites_data.append({
+                    'favorite_type': favorite.favorite_type,
+                    'character_id': character.character_id,
+                    'name': character.name
+                })
     
     return jsonify(favorites_data), 200
 
@@ -316,21 +317,23 @@ def get_user_favorites():
 
 @app.route('/favorite/planet/<int:planet_id>', methods=['POST'])
 def add_favorite_planet(planet_id):
-    # Usamos un user_id hardcodeado para simular el proceso de autenticación
-    current_user_id = 1  # Esto se remplaza por la autenticación del próximo ejercicio.
+    current_user_id = 1  # Simulación de autenticación.
     
-    # Verificar si el planeta existe en la base de datos
+    # Verificar si el planeta existe.
     planet = Planets.query.get(planet_id)
-    if planet is None:
+    if not planet:
         return jsonify({"error": "Planet not found"}), 404
-    
-    # Crear un nuevo registro de favorito
-    new_favorite = Favorites(user_id=current_user_id, favorite_type="planet", favorite_id_ref=planet_id)
-    
-    # Agregar el nuevo favorito a la base de datos
+
+    # Crear el registro de favorito.
+    new_favorite = Favorites(
+        user_id=current_user_id,
+        item_id=planet_id,
+        favorite_type="Planet"
+    )
+
     db.session.add(new_favorite)
     db.session.commit()
-    
+
     return jsonify({
         "message": "Planet added to favorites",
         "planet_id": planet_id,
@@ -341,18 +344,23 @@ def add_favorite_planet(planet_id):
 
 @app.route('/favorite/character/<int:character_id>', methods=['POST'])
 def add_favorite_character(character_id):
-    # Usamos un user_id hardcodeado para simular el proceso de autenticación
-    current_user_id = 1  # Esto se remplaza por la autenticación del próximo ejercicio.
+    current_user_id = 1  # Simulación de autenticación.
     
+    # Verificar si el personaje existe.
     character = Characters.query.get(character_id)
-    if character is None:
+    if not character:
         return jsonify({"error": "Character not found"}), 404
-    
-    new_favorite = Favorites(user_id=current_user_id, favorite_type="character", favorite_id_ref=character_id)
-    
+
+    # Crear el registro de favorito.
+    new_favorite = Favorites(
+        user_id=current_user_id,
+        item_id=character_id,
+        favorite_type="Character"
+    )
+
     db.session.add(new_favorite)
     db.session.commit()
-    
+
     return jsonify({
         "message": "Character added to favorites",
         "character_id": character_id,
@@ -363,42 +371,44 @@ def add_favorite_character(character_id):
 
 @app.route('/favorite/planet/<int:planet_id>', methods=['DELETE'])
 def delete_favorite_planet(planet_id):
+    current_user_id = 1  # Simulación de autenticación.
 
-    current_user_id = 1  
-    
-    favorite = Favorites.query.filter_by(user_id=current_user_id, favorite_type="planet", favorite_id_ref=planet_id).first()
-    
+    # Buscar el favorito correspondiente.
+    favorite = Favorites.query.filter_by(
+        user_id=current_user_id,
+        item_id=planet_id,
+        favorite_type="Planet"
+    ).first()
+
     if not favorite:
-        return jsonify({"error": "Favorite planet not found"}), 404
-    
+        return jsonify({"error": "Favorite not found"}), 404
+
     db.session.delete(favorite)
     db.session.commit()
-    
-    return jsonify({
-        "message": "Planet removed from favorites",
-        "planet_id": planet_id
-    }), 200
+
+    return jsonify({"message": "Favorite planet removed"}), 200
 
 
 # [DELETE] /favorite/character/<int:character_id> - Eliminar un character favorito
 
 @app.route('/favorite/character/<int:character_id>', methods=['DELETE'])
 def delete_favorite_character(character_id):
+    current_user_id = 1  # Simulación de autenticación.
 
-    current_user_id = 1 
-    
-    favorite = Favorites.query.filter_by(user_id=current_user_id, favorite_type="character", favorite_id_ref=character_id).first()
-    
+    # Buscar el favorito correspondiente.
+    favorite = Favorites.query.filter_by(
+        user_id=current_user_id,
+        item_id=character_id,
+        favorite_type="Character"
+    ).first()
+
     if not favorite:
-        return jsonify({"error": "Favorite character not found"}), 404
-    
+        return jsonify({"error": "Favorite not found"}), 404
+
     db.session.delete(favorite)
     db.session.commit()
-    
-    return jsonify({
-        "message": "Character removed from favorites",
-        "character_id": character_id
-    }), 200
+
+    return jsonify({"message": "Favorite character removed"}), 200
 
 
 #### Fin Users  ####
