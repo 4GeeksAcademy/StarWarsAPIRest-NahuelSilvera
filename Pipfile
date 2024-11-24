@@ -18,6 +18,9 @@ flask-cors = "*"
 gunicorn = "*"
 mysqlclient = "*"
 flask-admin = "*"
+werkzeug = "*"
+pyjwt = "*"
+flask-jwt-extended = "*"
 
 [requires]
 python_version = "3.10"

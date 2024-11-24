@@ -2,6 +2,8 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 import os
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+import datetime
 from flask import Flask, request, jsonify, url_for
 from flask_migrate import Migrate
 from flask_swagger import swagger
@@ -10,7 +12,15 @@ from utils import APIException, generate_sitemap
 from admin import setup_admin
 from models import db, Users,Planets,Favorites,Characters
 
+
 app = Flask(__name__)
+
+# La clave super secreta
+app.config['SECRET_KEY'] = 'Sesuponequeestodebesersecretisimo' 
+
+jwt = JWTManager(app)
+
+
 app.url_map.strict_slashes = False
 
 db_url = os.getenv("DATABASE_URL")
@@ -37,16 +47,38 @@ def sitemap():
 
 #### Endpoints ####
 
+# [POST] /token - Tokenización de usuario
 
-#### Characters ####
+@app.route('/token', methods=['POST'])
+def generate_token():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+
+    if not email or not password:
+        return jsonify({"message": "Email and password are required"}), 400
+
+    user = Users.query.filter_by(email=email).first()
+
+    if not user or not user.check_password(password):
+        return jsonify({"message": "The user o the password are invalid"}), 401
+
+    access_token = create_access_token(
+        identity=user.user_id, 
+        expires_delta=datetime.timedelta(hours=1)  # El token expira en 1 hora, por seguridad
+    )
+
+    return jsonify({'token': access_token}), 200
+
 
 # [GET] /characters - Obtener todos los personajes
-
 @app.route('/characters', methods=['GET'])
+@jwt_required()
 def get_all_characters():
-    characters = Characters.query.all()  # Obtiene todos los registros de la tabla Characters
-    
-    # Convertir los resultados a un formato JSON
+    # Accede al usuario autenticado
+    current_user_id = get_jwt_identity()
+
+    characters = Characters.query.all()
     characters_list = []
     for character in characters:
         characters_list.append({
@@ -60,11 +92,12 @@ def get_all_characters():
     return jsonify(characters_list), 200
 
 # [GET] /character/<int:character_id> - Obtener la información de un personaje por ID
-
 @app.route('/character/<int:character_id>', methods=['GET'])
+@jwt_required()
 def get_character(character_id):
+    current_user_id = get_jwt_identity()
 
-    character = Characters.query.filter_by(character_id=character_id).first()  # Devuelve el primer resultado o None si no se encuentra
+    character = Characters.query.filter_by(character_id=character_id).first()
     
     if character is None:
         return jsonify({"message": "Character not found"}), 404
@@ -80,9 +113,11 @@ def get_character(character_id):
     return jsonify(character_data), 200
 
 # [POST] /character - Agregar un personaje
-
 @app.route('/character', methods=['POST'])
+@jwt_required()
 def add_character():
+    current_user_id = get_jwt_identity()
+    
     data = request.get_json()
 
     if 'name' not in data or 'species' not in data or 'homeworld' not in data:
@@ -105,10 +140,10 @@ def add_character():
     }), 201
 
 #  [PUT] /character/<int:character_id> - Modificar personaje
-
-
 @app.route('/character/<int:character_id>', methods=['PUT'])
+@jwt_required()
 def update_character(character_id):
+    current_user_id = get_jwt_identity()
 
     data = request.get_json()
 
@@ -131,10 +166,10 @@ def update_character(character_id):
     }), 200
 
 #  [DELETE] /character/<int:character_id> - Eliminar personaje
-
-
 @app.route('/character/<int:character_id>', methods=['DELETE'])
+@jwt_required()
 def delete_character(character_id):
+    current_user_id = get_jwt_identity()
 
     character = Characters.query.get(character_id)
     
@@ -149,17 +184,18 @@ def delete_character(character_id):
         "character_id": character_id
     }), 200
 
-
 #### Fin Characters ####
-
 
 #### Planets ####
 
 # [GET] /planets - Obtener todos los planetas
 
 @app.route('/planets', methods=['GET'])
+@jwt_required()
 def get_all_planets():
-    planets = Planets.query.all() 
+    current_user_id = get_jwt_identity()
+
+    planets = Planets.query.all()
     
     planets_list = []
     for planet in planets:
@@ -177,7 +213,9 @@ def get_all_planets():
 # [GET] /planet/<int:planet_id> - Obtener la información de un planeta por ID
 
 @app.route('/planet/<int:planet_id>', methods=['GET'])
+@jwt_required()
 def get_planet(planet_id):
+    current_user_id = get_jwt_identity()
 
     planet = Planets.query.filter_by(planet_id=planet_id).first()
     
@@ -197,7 +235,10 @@ def get_planet(planet_id):
 # [POST] /planet - Agregar un planeta
 
 @app.route('/planet', methods=['POST'])
+@jwt_required()
 def add_planet():
+    current_user_id = get_jwt_identity()
+    
     data = request.get_json()
 
     if 'name' not in data or 'climate' not in data or 'terrain' not in data:
@@ -222,7 +263,9 @@ def add_planet():
 #  [PUT] /planet/<int:planet_id> - Modificar planeta de la BD
 
 @app.route('/planet/<int:planet_id>', methods=['PUT'])
+@jwt_required()
 def update_planet(planet_id):
+    current_user_id = get_jwt_identity()
 
     data = request.get_json()
 
@@ -248,7 +291,9 @@ def update_planet(planet_id):
 #  [DELETE] /planet/<int:planet_id> - Eliminar planeta de la bd
 
 @app.route('/planet/<int:planet_id>', methods=['DELETE'])
+@jwt_required()
 def delete_planet(planet_id):
+    current_user_id = get_jwt_identity()
 
     planet = Planets.query.get(planet_id)
     
@@ -271,24 +316,28 @@ def delete_planet(planet_id):
 # [GET] /users - Listar todos los usuarios
 
 @app.route('/users', methods=['GET'])
+@jwt_required()
 def get_all_users():
-    users = Users.query.all() 
-    users_data = []
-    for user in users:
-        users_data.append({
-            'user_id': user.user_id,
-            'email': user.email,
-            'username': user.username,
-            'user_creation_date': user.user_creation_date
-        })
+    current_user_id = get_jwt_identity()
+
+    users = Users.query.filter_by().all() 
+
+    users_data = [{
+        'user_id': user.user_id,
+        'email': user.email,
+        'username': user.username,
+        'user_creation_date': user.user_creation_date
+    } for user in users]
+
     return jsonify(users_data), 200
 
 # [GET] /users/favorites - Listar todos los favoritos del usuario actual
 
 @app.route('/users/favorites', methods=['GET'])
+@jwt_required()
 def get_user_favorites():
-    current_user_id = 1  # Simulación de usuario autenticado.
-    
+    current_user_id = get_jwt_identity()
+
     # Obtener los favoritos del usuario actual.
     favorites = Favorites.query.filter_by(user_id=current_user_id).all()
     favorites_data = []
@@ -316,13 +365,24 @@ def get_user_favorites():
 # [POST] /favorite/planet/<int:planet_id> - Agregar un nuevo planeta favorito
 
 @app.route('/favorite/planet/<int:planet_id>', methods=['POST'])
+@jwt_required()
 def add_favorite_planet(planet_id):
-    current_user_id = 1  # Simulación de autenticación.
+    current_user_id = get_jwt_identity()  # Obtiene el user_id del JWT
     
     # Verificar si el planeta existe.
     planet = Planets.query.get(planet_id)
     if not planet:
         return jsonify({"error": "Planet not found"}), 404
+
+    # Verificar si ya es favorito
+    existing_favorite = Favorites.query.filter_by(
+        user_id=current_user_id,
+        item_id=planet_id,
+        favorite_type="Planet"
+    ).first()
+    
+    if existing_favorite:
+        return jsonify({"message": "Planet is already in favorites"}), 400
 
     # Crear el registro de favorito.
     new_favorite = Favorites(
@@ -340,16 +400,28 @@ def add_favorite_planet(planet_id):
         "planet_name": planet.name
     }), 201
 
+
 # [POST] /favorite/character/<int:character_id>' - Agregar un nuevo personaje favorito
 
 @app.route('/favorite/character/<int:character_id>', methods=['POST'])
+@jwt_required()
 def add_favorite_character(character_id):
-    current_user_id = 1  # Simulación de autenticación.
+    current_user_id = get_jwt_identity()  # Obtiene el user_id del JWT
     
     # Verificar si el personaje existe.
     character = Characters.query.get(character_id)
     if not character:
         return jsonify({"error": "Character not found"}), 404
+
+    # Verificar si ya es favorito
+    existing_favorite = Favorites.query.filter_by(
+        user_id=current_user_id,
+        item_id=character_id,
+        favorite_type="Character"
+    ).first()
+    
+    if existing_favorite:
+        return jsonify({"message": "Character is already in favorites"}), 400
 
     # Crear el registro de favorito.
     new_favorite = Favorites(
@@ -370,8 +442,9 @@ def add_favorite_character(character_id):
 # [DELETE] /favorite/planet/<int:planet_id> - Eliminar un planeta favorito
 
 @app.route('/favorite/planet/<int:planet_id>', methods=['DELETE'])
+@jwt_required()
 def delete_favorite_planet(planet_id):
-    current_user_id = 1  # Simulación de autenticación.
+    current_user_id = get_jwt_identity()  # Obtiene el user_id del JWT
 
     # Buscar el favorito correspondiente.
     favorite = Favorites.query.filter_by(
@@ -392,8 +465,9 @@ def delete_favorite_planet(planet_id):
 # [DELETE] /favorite/character/<int:character_id> - Eliminar un character favorito
 
 @app.route('/favorite/character/<int:character_id>', methods=['DELETE'])
+@jwt_required()
 def delete_favorite_character(character_id):
-    current_user_id = 1  # Simulación de autenticación.
+    current_user_id = get_jwt_identity()  
 
     # Buscar el favorito correspondiente.
     favorite = Favorites.query.filter_by(
@@ -412,6 +486,7 @@ def delete_favorite_character(character_id):
 
 
 #### Fin Users  ####
+
 
 
 # this only runs if `$ python src/app.py` is executed
